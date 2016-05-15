@@ -1,0 +1,23 @@
+{
+    "globals": {
+        "$": false,
+        "Phaser": false,
+        "App": false
+    },
+    
+    "browser": true,
+    "devel": true,
+    
+    "curly": true,
+    "eqeqeq": true,
+    "eqnull": true,
+    "expr": true,
+    "immed": true,
+    "latedef": true,
+    "onevar": true,
+    "noarg": true,
+    "trailing": true,
+    "undef": true,
+    "unused": true,
+    "quotmark": "double"
+}

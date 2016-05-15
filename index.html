@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>Ж Ж Ж</title>
+<meta name="viewport"
+	content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link href="https://fonts.googleapis.com/css?family=Michroma"
+	rel="stylesheet" type="text/css">
+<link rel="stylesheet" href="lib/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+	<div id="canvas_container"></div>
+	<div id="splashscreen">
+		<div class="center" >
+			<div id="header"></div>
+			<div class="help hidden container-fluid">
+				<p>Your mission is to fly towards the core of this planet
+					following the crack in the surface. Be careful as the crack will
+					get narrower the deeper you travel.</p>
+				<table>
+					<tr class="deviceorientation-off">
+						<td><span class="keyboard">&lt;</span><span class="keyboard">&gt;</span></td>
+						<td>Use arrows to navigate left / right</td>
+					</tr>
+					<tr class="deviceorientation-off">
+						<td><span class="keyboard">space</span></td>
+						<td>Hit spacebar to fire blast</td>
+					</tr>
+					<tr class="deviceorientation-off">
+						<td><span class="keyboard">P</span></td>
+						<td>Hit P to pause game</td>
+					</tr>
+					<tr class="deviceorientation-on">
+						<td><span class="glyphicon glyphicon-phone"
+							aria-hidden="true"></span></td>
+						<td>Tilt device to navigate left / right</td>
+					</tr>
+					<tr class="deviceorientation-on">
+						<td><span class="glyphicon glyphicon-hand-up"
+							aria-hidden="true"></span></td>
+						<td>Tap to fire blast</td>
+					</tr>
+					<tr>
+						<td><img src="img/health.png" /></td>
+						<td>Restore shield</td>
+					</tr>
+					<tr>
+						<td><img src="img/energy.png" /></td>
+						<td>Restore energy</td>
+					</tr>
+					<tr>
+						<td><img src="img/coin.png" /></td>
+						<td>Bonus</td>
+					</tr>
+				</table>
+			</div>
+			<div id="text">Loading</div>
+			<div id="loader"></div>
+		</div>
+	</div>
+	<div class="menu container-fluid">
+		<div class="row">
+			<div id="menu_left" class="col-sm-8 col-xs-10"></div>
+			<div id="player"
+				class="col-sm-1 col-sm-push-3 col-xs-2 fullscreen hidden">
+				<div class="center">
+					<div class="help">
+						<p>This game will play audio. Press any key to continue.</p>
+					</div>
+				</div>
+				<span id="player_play"
+					class="playerbutton glyphicon glyphicon-volume-off hidden"
+					aria-hidden="true"></span><span id="player_pause"
+					class="playerbutton glyphicon glyphicon-volume-up hidden"
+					aria-hidden="true"></span>
+			</div>
+			<div class="col-sm-3 col-sm-pull-1 col-xs-12">
+				<div id="health_bar" class="statusbar"></div>
+				<div id="energy_bar" class="statusbar"></div>
+				<div id="bonus_bar" class="statusbar"></div>
+			</div>
+		</div>
+	</div>
+	<script src="lib/jquery-1.12.1.min.js"></script>
+	<script src="lib/phaser-2.4.4.min.js"></script>
+	<script src="build/pitfall.min.js"></script>
+</body>
+</html>

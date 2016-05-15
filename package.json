@@ -1,0 +1,16 @@
+{
+    "name" : "pitfall",
+    "version" : "0.1.0",
+    "author" : "Koljascasino",
+    "private" : true,
+
+    "devDependencies" : {
+        "grunt" :                       "~0.4.0",
+        "grunt-contrib-concat": 		"~0.1.3",
+        "grunt-contrib-uglify":         "*",
+        "grunt-contrib-watch":          "*",
+        "grunt-contrib-jshint":			"*",
+        "grunt-htmlhint":               "*",
+        "matchdep":                     "*"
+    }
+}
