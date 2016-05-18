@@ -21,8 +21,8 @@ $(function(){
 		// Start game
 		var music = new App.Music(context);
 		var ui = new App.Ui(music);
-		var game = new Phaser.Game(800, 600, Phaser.AUTO, "canvas_container");
-		var gameState = new App.GameState(ui, music, game, 800, 600);
+		var game = new Phaser.Game(900, 600, Phaser.AUTO, "canvas_container");
+		var gameState = new App.GameState(ui, music, game, 900, 600);
 		game.state.add("game", gameState, true);
 
 	} else {
@@ -277,7 +277,7 @@ $(function(){
 
 (function (app) {
 	"use strict";
-	
+
 	/**
 	 * Manages the music, loads, loops and synchronizes the tracks and plays sound effect via WebAudio.
 	 * @param context {AudioContext}
@@ -287,16 +287,21 @@ $(function(){
 		this.sounds = {};
 		this.tracks = {};
 		this.onLoad = null; 
-		this.startDelay = 0.1;
 		this.extension = "." + this.getAudioExtension();
 		this.muted = false;
 		this.master = this.context.createGain();
 		this.master.connect(this.context.destination);
-		this.master.gain.value = 1.0;
 		this.unlocked = false;
 		this.loading = false;
+		this.startTime = null; 
+		this.config = {
+				startDelay: 0.2,
+				fadeInTime: 0.2,
+				fadeOutTime: 0.1,
+				masterGain: 1.0
+		};
 	};
-	
+
 	/**
 	 * Mutes/unmutes the music
 	 */
@@ -307,7 +312,7 @@ $(function(){
 			this.master.gain.value = 0;
 		}
 	};
-	
+
 	/**
 	 * Loads the audio files and calls callback function when ready
 	 * @param onLoad callback when all files are loaded
@@ -321,7 +326,7 @@ $(function(){
 		this.sounds.hit = new app.Sound(this, "hit");
 		this.sounds.rupee = new app.Sound(this, "rupee");
 		this.sounds.shield = new app.Sound(this, "shield");
-		this.tracks.pause = new app.Track(this, "pause", 45.176485260770974, {loop: 1.0});
+		this.tracks.pause = new app.Track(this, "pause", 45.176485260770974, {loop: 1.0}, true);
 		this.tracks.loop1 = new app.Track(this, "loop1", 39.529433106575965, {loop: 0.2, loop2: 0.8});
 		this.tracks.loop2 = new app.Track(this, "loop2", 33.88235827664399, {loop: 0.2, loop1: 0.8});
 		this.tracks.drums0 = new app.Track(this, "drums0", 11.294126984126985, {drums1: 1.0});
@@ -330,7 +335,7 @@ $(function(){
 		this.tracks.drums3 = new app.Track(this, "drums3", 11.294126984126985, {drums2: 1.0});
 		this.masterTrack = this.tracks.pause;
 	};
-	
+
 	/**
 	 * Creates and empty buffer and plays it in the hope this will unlock/unmute
 	 * the AudioContext in iOS.
@@ -345,7 +350,7 @@ $(function(){
 			console.log("Audio unlocked. Playing " + this.extension + " files");
 		}
 	};
-	
+
 	/**
 	 * Checks if all audio files are loaded and calls the callback if they are
 	 * @returns {Boolean}
@@ -368,53 +373,54 @@ $(function(){
 		}
 		return true;
 	};
-	
+
 	/**
 	 * Stop all tracks and play intro/pause music
 	 */
-	Music.prototype.pause = function() {
-		this.stopTracks(0.1);
+	Music.prototype.pause = function(reverse) {
+		this.stopTracks();
 		this.masterTrack = this.tracks.pause;
-		this.tracks.pause.play(0, 0);
+		this.tracks.pause.play(0, reverse);
 	};
-	
+
 	/**
 	 * Stop all tracks and play master track 
 	 */
 	Music.prototype.play = function() {
-		this.stopTracks(0.1);
+		this.stopTracks();
 		this.masterTrack = this.tracks.loop1;
-		this.tracks.loop1.play(0, 0);
-		this.tracks.drums1.play(0, 0);
+		this.tracks.loop1.play();
+		this.tracks.drums1.play();
 	};
-	
+
+
 	/**
 	 * Stops all tracks
 	 */
 	Music.prototype.stop = function(){
-		this.stopTracks(1);
+		this.stopTracks();
 	};
-	
+
 	/**
 	 * Switch beat to half time 
 	 */
 	Music.prototype.halfTime = function(){
-		this.tracks.drums0.stop(0, 0.2);
-		this.tracks.drums1.play(0, 0.5);
-		this.tracks.drums2.stop(0, 0.5);
+		this.tracks.drums0.stop(0.2);
+		this.tracks.drums1.play(0.5);
+		this.tracks.drums2.stop(0.5);
 		this.tracks.drums3.stop(0.2);
 	};
-	
+
 	/**
 	 * Switch beat to double time
 	 */
 	Music.prototype.doubleTime = function(){
-		this.tracks.drums0.stop(0, 0.2);
-		this.tracks.drums1.stop(0, 0.2);
-		this.tracks.drums2.play(0, 0.2);
+		this.tracks.drums0.stop(0.2);
+		this.tracks.drums1.stop(0.2);
+		this.tracks.drums2.play(0.2);
 		this.tracks.drums3.stop(0.2);
 	};
-	
+
 	/**
 	 * Creates a new BufferSource from an AudioBuffer instance
 	 * @param buffer
@@ -425,7 +431,7 @@ $(function(){
 		source.buffer = buffer;
 		return source;
 	};
-	
+
 	/**
 	 * Fetch and decode an audio asset, then pass the AudioBuffer
 	 * to the supplied callback
@@ -453,7 +459,7 @@ $(function(){
 		};
 		request.send();
 	};
-	
+
 	/**
 	 * Stop all tracks
 	 */
@@ -462,7 +468,7 @@ $(function(){
 			this.tracks[key].stop(fadeTime);
 		}
 	};
-	
+
 	/**
 	 * Check if browser can play audio files of a given type
 	 * @param ext Extension of the audio file
@@ -472,7 +478,7 @@ $(function(){
 		var a = document.createElement("audio");
 		return ( !! (a.canPlayType && a.canPlayType("audio/" + ext + ";").replace(/no/, "")));
 	};
-	
+
 	/**
 	 * Checks if the browser can play .ogg or "m4a" files and 
 	 * returns the preferred audio extension, 
@@ -489,6 +495,38 @@ $(function(){
 		return extension;
 	};
 
+	Music.prototype.getBars = function(time) {
+		return Math.round((time - this.masterTrack.startTime) / this.tracks.drums1.duration, 4);
+	};
+
+	/**
+	 * Returns a reverse deep copy of the audio buffer
+	 */
+	Music.prototype.getReverseClone = function(audioBuffer) {
+		var channels = [],
+			numChannels = audioBuffer.numberOfChannels,
+			i = 0;
+
+		// Clone the underlying Float32Arrays
+		for (i = 0; i < numChannels; i++) {
+			channels[i] = new Float32Array(audioBuffer.getChannelData(i));
+		}
+
+		// Create the new AudioBuffer (assuming AudioContext variable is in scope)
+		var newBuffer = this.context.createBuffer(audioBuffer.numberOfChannels, audioBuffer.length, audioBuffer.sampleRate);
+
+		// Copy the cloned arrays to the new AudioBuffer
+		for (i = 0; i < numChannels; i++) {
+			newBuffer.getChannelData(i).set(channels[i]);
+		}
+
+		// Reverse the clone
+		for (i = 0; i < numChannels; i++) {
+			Array.prototype.reverse.call(newBuffer.getChannelData(i));
+		}
+		return newBuffer;
+	};
+
 	app.Music = Music;
 }(App));
 (function (app) {
@@ -503,17 +541,20 @@ $(function(){
 	 * @param duration
 	 * @param nextMap
 	 */
-	var Track = function Track(music, key, duration, nextMap) {
+	var Track = function Track(music, key, duration, nextMap, loadReverse) {
 		this.music = music;
 		this.key = key;
 		this.config = {
 				path: "music/"
 		};
 		this.buffer = null;
+		this.reverseBuffer = null;
 		this.ready = false;
 		this.duration = duration;
-		this.offset = 0;
-		this.started = false;
+		this.startTime = null;
+		this.endTime = null;
+		this.loadReverse = loadReverse;
+		this.reverse = false;
 		this.deck = 0;
 		this.nextMap = nextMap;
 		this.next = null;
@@ -523,15 +564,21 @@ $(function(){
 		// Check if all tracks are loaded and start playing master track
 		var onLoaded = function(buffer) {
 			console.log(this.config.path + this.key + this.music.extension + " loaded. Length " + String(buffer.length) + " samples or " + String(buffer.duration) + "s");
+			
 			this.buffer = buffer;
 			this.ready = true;
 
+			// Reverse buffer if needed
+			if (typeof this.loadReverse !== "undefined" && this.loadReverse) {
+				this.reverseBuffer = this.music.getReverseClone(this.buffer);
+			}
+			
 			// Check if this was the last track to be loaded
 			this.music.ready();
 
 			// Start playing master track as soon as its loaded
 			if (this.music.masterTrack === this) {
-				this.play(0, 0);
+				this.play();
 			}
 		}.bind(this);
 		this.music.loadAudio(this.music.context, this.config.path, this.key, onLoaded); 
@@ -542,36 +589,42 @@ $(function(){
 	 * @param startTime
 	 * @param fadeTime
 	 */
-	Track.prototype.play = function(startTime, fadeTime){
+	Track.prototype.play = function(fadeInTime, reverse) {
 
 		// If track is already playing do nothing
-		if (startTime === 0 && this.started) {
+		if (this.startTime !== null) {
 			return;
 		}
-		this.start(startTime, fadeTime);
-		this.scheduleNext();
-	};
-
-	/**
-	 * Load buffer and start playing track
-	 * @param startTime
-	 * @param fadeTime
-	 */
-	Track.prototype.start = function(startTime, fadeTime) {
-
-		// Calculate start time and start track
-		this.plays = 1;
-		if (startTime  === 0) {
-			this.startTime = this.music.context.currentTime + this.music.startDelay; 
-			this.offset = (this.startTime - this.music.masterTrack.startTime) % this.music.masterTrack.duration % this.duration;
+		
+		// Calculate start time and offset
+		var offset = 0;
+		var masterStart = 0;
+		if (this.music.masterTrack.key === this.key){
+			this.startTime = this.music.context.currentTime + this.music.config.startDelay;
+			offset = 0;
 		} else {
-			this.startTime = startTime;
-			this.offset = 0;
-		} 
-		console.log("Starting " + this.key + " at time "+ this.startTime + " master track: " + this.music.masterTrack.key + " offset " + String(this.offset));
-
-		this.startDeck(this.startTime, this.offset, fadeTime);
-		this.started = true;
+			masterStart = this.music.masterTrack.startTime;
+			if (masterStart > this.music.context.currentTime + this.music.config.startDelay / 2){
+				this.startTime = masterStart;
+				offset = 0;
+			} else {
+				this.startTime = this.music.context.currentTime + this.music.config.startDelay;
+				offset = (this.startTime - masterStart) % this.music.masterTrack.duration % this.duration;
+			}
+		}
+		
+		// Reverse buffer if needed
+		if (typeof reverse !== "undefined") {
+			this.reverse = reverse;
+			if (reverse && this.reverseBuffer === null) {
+				this.reverseBuffer = this.music.getReverseClone(this.buffer);
+			}
+		}
+		
+		// Start track
+		console.log("Playing " + this.key  + ", master track: " + this.music.masterTrack.key + " offset " + String(offset));
+		this.startDeck(this.startTime, offset, fadeInTime);
+		this.scheduleNext();
 	};
 
 	/**
@@ -581,28 +634,83 @@ $(function(){
 	 * @param offset
 	 * @param fadeTime
 	 */
-	Track.prototype.startDeck = function(startTime, offset, fadeTime){
-
+	Track.prototype.startDeck = function(startTime, offsetProvided, fadeInTime) {
+		
 		// Switch deck
 		if (this.deck === 0){
 			this.deck = 1;
 		} else {
 			this.deck = 0;
 		}
-
+		
+		// Resync to master track
+		var offset;
+		var delay;
+		var fadeIn = 0;
+		
+		// var masterStart = this.music.masterTrack.startTime;
+		// var masterDuration = this.music.masterTrack.duration;
+		
+		// Caller already did the job
+		if (typeof offsetProvided !== "undefined"){
+			offset = offsetProvided;
+			delay = 0;
+		} else {
+			offset = 0;
+			delay = 0;
+		}
+			
+		/*
+		// Calculate offset or delay
+		} else {
+			offset = ((startTime - masterStart)  % masterDuration) % this.duration;
+			delay = (((((masterStart - startTime) % masterDuration) + masterDuration) % masterDuration % this.duration) + this.duration) % this.duration;
+			if (offset < -0.0001) {
+				delay = -offset;
+				offset = 0;
+			} else if (offset < 0.0001 && delay < 0.0001){
+				offset = 0;
+				delay = 0;
+			} else if (offset < delay) {
+				console.log("	Offset: " + offset + ", delay: " + delay + " -> offsetting by " + offset);
+				delay = 0;
+			} else {
+				console.log("	Offset: " + offset + ", delay: " + delay + " -> delaying by " + delay);
+				offset = 0;
+			}
+		}*/
+		
+		// Set start and end time
+		if (this.startTime === null){
+			this.startTime = startTime + delay;
+		} 
+		this.endTime = startTime - offset + this.duration + delay;
+		
+		// Use reverse buffer?
+		var buffer = this.buffer;
+		if (this.reverse && this.reverseBuffer !== null){
+			buffer = this.reverseBuffer;
+		}
+		
 		// Set up nodes and schedule play
+		console.log(this.key + " (deck " + this.deck + ") starting " + this.music.getBars(startTime) + " bars after master " + this.music.masterTrack.key);
 		var nodes = this.nodes[this.deck];
-		nodes.source = this.music.createBufferSource(this.buffer);
+		nodes.source = this.music.createBufferSource(buffer);	
 		nodes.source.playbackRate.value = 1;
 		nodes.gain = this.music.context.createGain();
 		nodes.source.connect(nodes.gain);
 		nodes.gain.connect(this.music.master);
-		nodes.source.start(startTime, offset);
+		nodes.source.start(startTime + delay, offset);
 
 		// Fade in
-		if (fadeTime > 0) {
+		if (offset > 0) {
+			if (typeof fadeInTime !== "undefined"){
+				fadeIn = fadeInTime;
+			} else {
+				fadeIn = this.music.config.fadeInTime;
+			}
 			nodes.gain.gain.linearRampToValueAtTime(0, startTime);
-			nodes.gain.gain.linearRampToValueAtTime(1, startTime + fadeTime);
+			nodes.gain.gain.linearRampToValueAtTime(1, startTime + Math.min(offset, fadeIn));
 		} else {
 			nodes.gain.gain.value = 1;
 		}
@@ -610,79 +718,81 @@ $(function(){
 		// Set up callback
 		nodes.source.onended = this.onEnded.bind(this);
 	};
-
-	/**
-	 * Loop track, switch decks
-	 * @param startTime
-	 */
-	Track.prototype.loop = function(startTime) {
-		console.log("Looping " + this.key + " at time " + startTime);
-		this.startDeck(startTime, 0, 0);
-	};
-
+	
 	/**
 	 * Schedules the next track at the time when this one has ended
 	 */
 	Track.prototype.scheduleNext = function() {
-
+		
 		// Figure out which track to play next
 		var dice = Math.random();
 		for (var next in this.nextMap) {
 			if (dice <= this.nextMap[next]) {
-
-				// Schedule next track
-				var startTimeNext = this.startTime + this.duration * this.plays - this.offset;
 				if (next === "loop") {
 					this.next = this.key;
-					this.loop(startTimeNext);
 				} else {
-					this.music.tracks[next].start(startTimeNext, 0);
 					this.next = next;
 				}
 				break;
 			}
 			dice -= this.nextMap[next];
 		}
+		
+		// Schedule the deck
+		this.music.tracks[this.next].startDeck(this.endTime);
 	};
-
+	
 	/**
 	 * Schedule the next track as soon as this one has stopped playing
 	 */
 	Track.prototype.onEnded = function() {
-		this.plays += 1;
+		
+		// this.next is now playing
+		if (this.next !== this.key) {
+			this.plays = 0;
+			this.startTime = null;
+			this.endTime = null;
+		}
+		
+		// Switch master track
 		if (this.music.masterTrack === this && this.next !== this.key){
 			console.log("Switching master track to " + this.next);
 			this.music.masterTrack = this.music.tracks[this.next];
 		}
+		
+		// Schedule next track
 		this.music.tracks[this.next].scheduleNext();
-		if (this.next !== this.key){
-			this.started = false;
-		}
 	};
 
 	/**
-	 * Stop playing track immediately
-	 * @param fadeTime
+	 * Stop playing track immediately,
+	 * also stop the next track if it is already scheduled
+	 * @param fadeTime fade out time
 	 */
-	Track.prototype.stop = function(fadeTime) {
+	Track.prototype.stop = function(fadeOutTime) {
+		this.plays = 0;
+		this.startTime = null;
+		this.endTime = null;
+		var fadeOut = this.music.config.fadeOutTime;
+		if (typeof fadeOutTime !== "undefined") {
+			fadeOut = fadeOutTime;
+		}
+		
 		for (var deck = 0; deck < 2; deck++) {
 			if (typeof this.nodes[deck].source !== "undefined") {
 				this.nodes[deck].source.onended = null;
-				if (fadeTime > 0) {
-					this.nodes[deck].gain.gain.linearRampToValueAtTime(0, this.music.context.currentTime + fadeTime);
-					this.started = false;
+				if (this.music.config.fadeOutTime > 0) {
+					this.nodes[deck].gain.gain.linearRampToValueAtTime(0, this.music.context.currentTime + this.music.config.fadeOutTime );
 				}
 				try {
-					this.nodes[deck].source.stop(this.music.context.currentTime + fadeTime);
-					this.started = false;
-				}
-				catch(e){
+					this.nodes[deck].source.stop(this.music.context.currentTime + fadeOut);
+				} catch(e){
 					console.log(e);
 				}
 			}
 		}
 	};
-
+	
 	app.Track = Track;
 }(App));
 (function (app) {
@@ -768,7 +878,7 @@ $(function(){
 	GameState.prototype.preload = function() {
 		this.game.load.image("bullet", "img/bullet.png");
 		this.game.load.spritesheet("earth", "img/earth.png", 50, 50);
-		this.game.load.image("playerLight", "img/light_800x600.png");
+		this.game.load.image("playerLight", "img/light_900x600.png");
 		this.game.load.image("ship", "img/ship.png");
 		this.game.load.spritesheet("kaboom", "img/explosion.png", 128, 128);
 		this.game.load.image("starfield", "img/starfield.png", this.width, this.height);
@@ -776,9 +886,9 @@ $(function(){
 
 	GameState.prototype.create = function() {
 
-		//  The scrolling starfield background
-		this.starfield = this.game.add.tileSprite(0, 0, this.width, this.height, "starfield");
-
+		// The earth
+		this.earth = new app.Earth(this.game, this.sounds, this.width, this.height);
+		
 		//  Our bullet group
 		this.bullets = this.game.add.group();
 		this.bullets.enableBody = true;
@@ -793,15 +903,12 @@ $(function(){
 		// The hero!
 		this.player = new app.Player(this.game, this.ui, this.music, this.width);
 
-		// The earth
-		this.earth = new app.Earth(this.game, this.sounds, this.player, this.width, this.height);
-
-		// Shadow and light texture
+		// Light texture
 		this.light = {};
 		this.light.texture = this.game.add.bitmapData(this.width, this.height);
 		this.light.image = this.game.add.image(0, 0, this.light.texture);
 		this.light.image.blendMode = Phaser.blendModes.MULTIPLY;    
-		this.updateShadowTexture();
+		this.updateLight();
 
 		// And some controls to play the game with
 		this.input.cursors = this.game.input.keyboard.createCursorKeys();
@@ -844,18 +951,17 @@ $(function(){
 	};
 
 	/**
-	 * Updates the shadow texture (this.shadowTexture).
-	 * First, it fills the entire texture with a dark shadow color.
+	 * Updates the Light texture (this.LightTexture).
+	 * First, it fills the entire texture with a dark Light color.
 	 * Then it draws a white circle centered on the pointer position.
 	 * Because the texture is drawn to the screen using the MULTIPLY
 	 * blend mode, the dark areas of the texture make all of the colors
 	 * underneath it darker, while the white area is unaffected.
 	 */
-	GameState.prototype.updateShadowTexture = function() {
-
+	GameState.prototype.updateLight = function() {
 		var radius = 400;
 
-		// Draw shadow
+		// Draw Light
 		this.light.texture.context.fillStyle = "rgb(0, 0, 0)";
 		this.light.texture.context.fillRect(0, 0, this.width, this.height);
 
@@ -899,10 +1005,8 @@ $(function(){
 		var boost = 20;
 		var stickyness = 40;
 
-		// Scroll the background
-		this.starfield.tilePosition.y -= 1;
-		this.earth.update();
-		this.updateShadowTexture();
+		this.earth.update(this.player);
+		this.updateLight();
 		this.input.update();
 
 		// Check for movement keys, input provides value between -1 and 1
@@ -921,17 +1025,17 @@ $(function(){
 		}
 
 		// Hard boundaries
-		if (this.player.sprite.x < this.player.sprite.width/2) {
-			this.player.sprite.x = this.player.sprite.width/2;
+		if (this.player.sprite.x < 3 * this.player.sprite.width/2 ) {
+			this.player.sprite.x = 3 * this.player.sprite.width/2;
 			this.player.sprite.body.velocity.x = 0;
-		} else if (this.player.sprite.x > this.width - this.player.sprite.width/2) {
-			this.player.sprite.x = this.width - this.player.sprite.width/2;
+		} else if (this.player.sprite.x > this.width - 3 * this.player.sprite.width/2) {
+			this.player.sprite.x = this.width - 3 * this.player.sprite.width/2;
 			this.player.sprite.body.velocity.x = 0;
 		}
 
 		//  Run collision
-		this.game.physics.arcade.overlap(this.bullets, this.earth.edges, this.bulletHitsEarth, null, this);
-		this.game.physics.arcade.overlap(this.earth.edges, this.player.sprite, this.playerHitsEarth, null, this);
+		this.game.physics.arcade.overlap(this.bullets, this.earth.items, this.bulletHitsEarth, null, this);
+		this.game.physics.arcade.overlap(this.earth.items, this.player.sprite, this.playerHitsEarth, null, this);
 	};
 
 	GameState.prototype.play = function() {
@@ -959,7 +1063,7 @@ $(function(){
 		this.input.pauseButton.onDown.add(this.pause, this);
 	};
 
-//	Bullet hits earth
+	// Bullet hits earth
 	GameState.prototype.bulletHitsEarth = function(bullet, item) {
 
 		// Bullet hits earth, create explosion
@@ -971,15 +1075,15 @@ $(function(){
 		}
 	};
 
-//	Player hits earth
+	// Player hits earth
 	GameState.prototype.playerHitsEarth = function(player, item) {
 		if (item.frame >= this.earth.frames.HEALTH){		
 			this.playerHitsGoodie(item);
 			this.earth.kill(item);
 		}
 		else {
-			this.playerTakesHit(item);
 			this.earth.kill(item);
+			this.playerTakesHit(item);
 		}	
 	};
 
@@ -1043,7 +1147,7 @@ $(function(){
 		if (this.player.shield <= 0) {
 			this.player.sprite.kill();  
 			this.sounds.die.play();
-			this.music.pause();
+			this.music.pause(true);
 			this.ui.gameOverScreen(this.restart, this);
 			this.input.pauseButton.onDown.remove(this.pause, this);
 		}
@@ -1095,7 +1199,7 @@ $(function(){
 	 * Also increases the energy and decreases bonus during each step
 	 * @param level
 	 */
-	Player.prototype.update = function(level) {
+	Player.prototype.updateLevel = function(level) {
 		this.level = level;
 		if (this.energy < 100) {
 			this.energy += 1;
@@ -1121,23 +1225,24 @@ $(function(){
 	 * earth items i.e. blocks and goodies
 	 * @param game
 	 * @param sounds
-	 * @param player
 	 * @param width
 	 * @param height
 	 */
-	var Earth = function Earth(game, sounds, player, width, height) {
+	var Earth = function Earth(game, sounds, width, height) {
 		this.game = game;
 		this.sounds = sounds;
-		this.player = player;
 		this.width = width;
 		this.height = height;
+		this.backgroundScroll = 0;
 
 		// Configuration
 		this.config = {
-				initialAutocorrelation: 0.9,
-				difficultyFactor: 0.9999,
+				autocorrelation: 0.8,
+				decay: 0.999,
 				levelHeight: 50,
-				blockWidth: 50
+				blockWidth: 50,
+				lfo1period: 100,
+				lfo2period: 450
 		};
 		this.frames = {
 				HEALTH: 16, 
@@ -1148,24 +1253,32 @@ $(function(){
 		// Some parameters
 		this.nBlocks = this.width / this.config.blockWidth;
 		this.nLevels = Math.floor(this.height / this.config.levelHeight);
+		
+		// Block background, these are all the blocks which are not at the edge of the earth
+		// i.e. the space completely surrounded by other blocks 
+		this.blockfield = this.game.add.tileSprite(0, 0, this.width, this.height, "earth");
 
-		// Autocorrelation of gap in earth
-		this.autocorrelation = null;
-		this.dice = null;
+		// Background tile sprites are used to model the background
+		// On the canvas they occupy the space in the crack, also each item has a background tile
+		// Everything that is not covered by the by the block field 
+		this.background = this.game.add.group();
+		this.background.enableBody = true;
+		this.background.physicsBodyType = Phaser.Physics.ARCADE;
+		var tile;
+		for (var x = 0; x < (2 * this.nLevels + 4); x++) {
+			tile = new Phaser.TileSprite(this.game, 0, 0, this.config.blockWidth, this.config.levelHeight, "starfield");
+			this.background.add(tile);
+		}
 
-		// Add game items
+		// This holds items at the edge of the earth and goodies
+		// Use this to run collisions
 		this.items = this.game.add.group();
 		this.items.enableBody = true;
 		this.items.physicsBodyType = Phaser.Physics.ARCADE;
-		this.items.createMultiple(this.nBlocks * (this.nLevels + 4), "earth");
+		this.items.createMultiple(6 * (this.nLevels + 4), "earth");
 
-		// Edges contains the outer blocks and goodies
-		// But not blocks that lie completely inside other blocks
-		// Use this to run collisions
-		this.edges = this.game.add.group();
-
-		// Maintain list of last row of items created
-		// Use this to link neighboring items
+		// Maintain list of last row of cells created
+		// Use this to link neighboring cells
 		this.lastRow = [];
 		this.previousRow = [];
 
@@ -1188,33 +1301,32 @@ $(function(){
 	 */
 	Earth.prototype.reset = function() {
 		this.items.y = 0;
-		this.edges.y = 0;
+		this.background.y = 0;
 		this.explosions.y = 0;
 		for (var i = 0; i < this.nBlocks; i++) {
 			this.lastRow[i] = null;
 		}
-		this.autocorrelation = this.config.initialAutocorrelation;
-		this.dice = 0.5;
-		this.items.addMultiple(this.edges);
-		this.items.forEach(this.resetItem, this);
-	};
-
-
-	/** Sets up or resets a block, removes neighbor links.
-	 * This should not be called on individual items, but on all
-	 * @param item to be removed
-	 */
-	Earth.prototype.resetItem = function(item) {
-		item.kill();
-		item.anchor.setTo(0, 0);
-		item.body.moves = false;
-		item.neighbors = {
-				top: null, 
-				left: null, 
-				right: null, 
-				bottom: null
-		};
-		item.frame = 0;
+		this.autocorrelation = this.config.autocorrelation;
+		this.lfo1period = this.config.lfo1period;
+		this.lfo2period = this.config.lfo2period;
+		this.random = 0.5;
+		this.lfo = 0.5;
+		
+		this.items.forEach(this.kill, this);
+		this.items.callAll("kill"); // forEach(this.kill) does not kill all
+		this.background.callAll("kill");
+		
+		console.log("Earth reset");
+		console.log("	Items " + this.items.length + " / " + this.items.countLiving() + "  alive." );
+		console.log("	Background sprites "+ this.background.length + " / " + this.background.countLiving() + " alive." );
+		
+		// Set the first background tile for the space until the blocks start
+		var tile = this.background.next();
+		tile.reset(0, 0);
+		tile.width = this.width;
+		tile.height = this.height;
+	
+		this.updateLevel(0);
 	};
 
 	/**
@@ -1222,165 +1334,221 @@ $(function(){
 	 * Should be called when killing an individual item
 	 * @param item
 	 */
-	Earth.prototype.kill = function(item) {
-		item.kill();
-		this.updateNeighborsAfterKilling(item);
-		item.neighbors = {
-				top: null, 
-				left: null, 
-				right: null, 
-				bottom: null
-		};
+	Earth.prototype.kill = function(item, updateFrame) {
+		var cell = item.cell;
 		
-		// Remove from edge and reset frame
-		if (item.frame > 0) {
-			this.edges.remove(item);
-			this.items.add(item);
-			item.frame = 0;
+		// Reset cell
+		if (typeof cell !== "undefined" && cell !== null) {
+			
+			// Update game item frame
+			if (this.isBlock(cell) && (updateFrame || typeof updateFrame === "undefined")) {
+				
+				// Reset frame
+				cell.frame = null;
+				cell.item = null;
+				
+				this.updateFrame(cell.neighbors.left);
+				this.updateFrame(cell.neighbors.right);
+				this.updateFrame(cell.neighbors.top);
+				this.updateFrame(cell.neighbors.bottom);
+			} else {
+				
+				// Reset frame
+				cell.frame = null;
+				cell.item = null;
+			}
+		}
+		
+		// Kill item
+		item.kill();
+		item.anchor.setTo(0, 0);
+		item.body.moves = false;
+		item.frame = 0;
+		item.width = this.config.blockWidth;
+		item.cell = null;
+		item.background = null;
+	};
+
+	/**
+	 * Updates the frame of the cell
+	 * creates a new game item if necessary
+	 * @param cell
+	 */
+	Earth.prototype.updateFrame = function(cell) {
+		var frame = 0;
+		if (cell === null) {
+			return;
+		}
+
+		// Recalculate frame
+		if (this.isBlock(cell)) {
+			if (!this.isBlock(cell.neighbors.left)) {
+				frame += 1;
+			}
+			if (!this.isBlock(cell.neighbors.bottom))  {
+				frame += 2;
+			} 
+			if (!this.isBlock(cell.neighbors.right)) {
+				frame += 4;
+			}
+			if (!this.isBlock(cell.neighbors.top)) {
+				frame += 8;
+			}
+			cell.frame = frame;
+
+			// Update existing block frame
+			if (cell.item !== null){
+				cell.item.frame = frame;
+			} 
+		}
+
+		// Create item
+		if (cell.item === null){
+			this.createItem(cell);	
 		}
 	};
-
+	
 	/**
-	 * Returns true for a block of earth and false for goodies or empty earth (i.e. null)
-	 * @param item
-	 * @returns {Boolean}
-	 */
-	Earth.prototype.isBlock = function(item) {
-		return item !== null && item.frame < this.frames.HEALTH;
-	};
-
-	/**
-	 * Sets the correct frame by checking neighbors
-	 * Also adds goodies to the edge array
-	 * This should only be called once after creating the item
+	 * Adds to the cell object an actual game item i.e. block, goodie or gap
 	 * @param item to set the frame
 	 */
-	Earth.prototype.setFrame = function(item) {	
-		if (item !== null) {
-			if (item.frame === 0) {
-				if (!this.isBlock(item.neighbors.left)) {
-					item.frame += 1;
-				}
-				if (!this.isBlock(item.neighbors.bottom)) {
-					item.frame += 2;
-				}
-				if (!this.isBlock(item.neighbors.right)) {
-					item.frame += 4;
-				}
-				if (!this.isBlock(item.neighbors.top)) {
-					item.frame += 8;
-				}
+	Earth.prototype.createItem = function(cell) {
+		var 
+			item = null,
+			x = cell.j * this.config.blockWidth,
+			y = this.height + cell.l * this.config.levelHeight;
+		
+		// Item already attached
+		if (cell.item !== null){
+			return;
+		}
+
+		// Create new item if not gap and not block surrounded by other blocks completely
+		if (cell.item === null && cell.frame > 0) {
+			item = this.items.getFirstExists(false);
+			if (item === null){
+				console.error("Running out of earth items.");
 			}
-			
-			// Add to edge
-			if (item.frame > 0) {
-				this.items.remove(item);
-				this.edges.add(item);
-			}
+			item.reset(x, y);
+			item.frame = cell.frame;
+			cell.item = item;
+			item.cell = cell;
+		}
+		
+		// Attach a background but not for blocks surrounded by other blocks completely
+		if (cell.frame === null || cell.frame > 0){
+			this.createBackground(cell, x, y);
 		}
 	};
 
 	/**
-	 * Increment frame, move to edge if frame is larger than zero
-	 * @param item
-	 * @param increment
+	 * Attaches a background sprite to the cell
+	 * @param cell
+	 * @param x position of cell item
+	 * @param y position of cell item
 	 */
-	Earth.prototype.incrementFrame = function(item, increment) {
-		if (item.frame === 0) {
-			this.edges.add(item);
-			this.items.remove(item);
+	Earth.prototype.createBackground = function(cell, x, y) {
+		var item = null;
+		
+		// Do nothing for blocks surrounded completely or if gap already exists
+		if (cell.frame === 0 || this.hasBackground(cell)) {
+			return;
 		}
-		item.frame += increment;
-	};
 
-	/**
-	 * Removes the links from all neighbors after killing the item
-	 * @param item
-	 */
-	Earth.prototype.updateNeighborsAfterKilling = function(item) {
-		if (this.isBlock(item)){
-			if (this.isBlock(item.neighbors.top)) {
-				item.neighbors.top.neighbors.bottom = null;
-				this.incrementFrame(item.neighbors.top, 2);
-			}
-			if (this.isBlock(item.neighbors.left)) {
-				item.neighbors.left.neighbors.right = null;
-				this.incrementFrame(item.neighbors.left, 4);
-			}
-			if (this.isBlock(item.neighbors.right)) {
-				item.neighbors.right.neighbors.left = null;
-				this.incrementFrame(item.neighbors.right, 1);
-			}
-			if (this.isBlock(item.neighbors.bottom)) {
-				item.neighbors.bottom.neighbors.top = null;
-				this.incrementFrame(item.neighbors.bottom, 8);
-			}
+		// If background item already exists left then expand it
+		if (this.hasBackground(cell.neighbors.left)) {
+			item = cell.neighbors.left.background;
+			item.width += this.config.blockWidth;
 		}
-	};
+		
+		// If background exists right then expand it
+		else if (this.hasBackground(cell.neighbors.right)) {
+			item = cell.neighbors.right.background;
+			item.x -= this.config.blockWidth;
+			item.tilePosition.x = -x;
+			item.width += this.config.blockWidth;
+		}
 
-	/**
-	 * Creates an explosion
-	 * @param item used to position the explosion
-	 */
-	Earth.prototype.explode = function(item) {
-		this.sounds.hit.play();
-		var explosion = this.explosions.getFirstExists(false);
-		if (explosion) {
-			explosion.reset(item.body.x + item.body.width/2, -this.items.y + item.body.y + item.body.height/2);
-			explosion.play("kaboom", 30, false, true);
+		// Else create a new background
+		else {
+			item = this.background.next();
+			item.reset(x, y);
+			item.tilePosition.x = -x;
+			item.tilePosition.y = -y + this.backgroundScroll;
+			item.width = this.config.blockWidth;
+			item.height = this.config.levelHeight;
 		}
+		
+		// Attach background to parent cell
+		cell.background = item;
 	};
 
 	/**
 	 * Moves the earth up during each frame.
 	 * Checks if a new row of blocks needs to be created 
 	 */
-	Earth.prototype.update = function() {
+	Earth.prototype.update = function(player) {
 		var step = 4,
 		l = 0;
 
-		if (!this.player.sprite.alive) {
+		if (!player.sprite.alive) {
 			step = 1;
 		}
+		
+		// Scroll blocks
 		this.items.y -= step;
-		this.edges.y -= step;
+		this.background.y -= step;
 		this.explosions.y -= step;
-
-		l = Math.floor(-this.items.y / 50) + 1;
-		if (l > this.player.level) {
+		this.blockfield.tilePosition.y = this.items.y % this.config.levelHeight;
+		
+		// Scroll background slower than blocks
+		this.backgroundScroll = Math.floor(this.items.y / 8);
+		var scroll = function(item) {
+			item.tilePosition.y = -item.y + this.backgroundScroll;	
+		}.bind(this);
+		this.background.forEach(scroll);
+		
+		l = Math.floor(-this.items.y / this.config.levelHeight) + 1;
+		if (l > player.level) {
+			player.updateLevel(l);
 			this.updateLevel(l);
 		}
 	};
-	
+
 	/**
 	 * Creates a new row of blocks by recycling the disappearing ones
 	 * @param l New level
 	 */
 	Earth.prototype.updateLevel = function(l){
 		var j = 0,
+		lfo1 = 0,
+		lfo2 = 0,
 		gap = 0,
 		gapWidth = 0,
-		item = null,
+		cell = null,
 		frame = null,
 		forEach = null;
 
 		// Update player and random parameters
-		this.player.update(l);
-		this.autocorrelation = this.autocorrelation * this.config.difficultyFactor;
-		this.dice = (1 - this.autocorrelation) * Math.random() + this.autocorrelation * this.dice;
-		gap = this.dice * this.nBlocks;
+		this.autocorrelation = this.autocorrelation * this.config.decay;
+		this.lfo1period = this.lfo1period * this.config.decay;
+		this.lfo2period = this.lfo2period * this.config.decay * this.config.decay;
+		this.random = (1 - this.autocorrelation) * Math.random() + this.autocorrelation * this.random;
+		lfo1 = (Math.sin(l * 2 * Math.PI / this.lfo1period) + 1) / 2;
+		lfo2 = (Math.sin(l * 2 * Math.PI / this.lfo2period) + 1) / 2;
+		gap = (lfo1/3 + lfo2/3 + this.random/3) * (this.nBlocks - 4) + 2;
 		gapWidth = Math.round(Math.random() * 3) + 3;
 
-		// Store items from previous row
+		// Store cells from previous row
 		this.previousRow = this.lastRow;
 		this.lastRow = new Array(this.nBlocks);
 
-		// Create new items for this row
+		// Create new cells for this row
 		for (j = 0; j < this.nBlocks; j++) {
-			item = null;
+			cell = null;
 			frame = null;
 
-			if (j < gap - gapWidth/2 || j > gap + gapWidth/2) {
+			if (j < Math.max(1, gap - gapWidth/2) || j > Math.min(this.nBlocks-2, gap + gapWidth/2)) {
 				frame = 0;
 			} else {
 				var r = Math.random();
@@ -1392,16 +1560,21 @@ $(function(){
 					frame = this.frames.ENERGY;	
 				}
 			}
-			if (frame !== null) {
-				item = this.items.getFirstExists(false);
-				if (item !== null) {
-					item.reset(j * this.config.blockWidth, this.height + l * this.config.levelHeight);
-					item.frame = frame;
-				} else {
-					console.log("Running out of recycable earth.");
-				}
-			}
-			this.lastRow[j] = item;
+
+			// Create cell
+			cell = {
+					item: null,
+					j: j,
+					l: l,
+					frame: frame,
+					neighbors: {
+						top: null, 
+						left: null, 
+						right: null, 
+						bottom: null
+					}
+			};
+			this.lastRow[j] = cell;
 		}
 
 		// Link neighbors, right most block is linked to the left most and vice versa
@@ -1416,21 +1589,55 @@ $(function(){
 			}
 		}
 
-		// Previous row neighbors are now linked, set their frames 
-		for (j = 0; j < this.nBlocks; j++) {
-			this.setFrame(this.previousRow[j]); 
+		if (l === 0) {
+			return;
 		}
-
+		
+		// Previous row place holders are now linked, set their frames
+		for (j = 0; j < this.nBlocks; j++){
+			this.updateFrame(this.previousRow[j]);
+		}
+			
 		// Remove disappearing earth
-		forEach = function(block) {
-			if (block !== null && block.body !== null && block.body.y < 0){
-				this.kill(block);
+		forEach = function(item) {
+			if (item !== null && item.body !== null && item.body.y < 0){
+				this.kill(item, false);
 			}
 		}.bind(this);
 		this.items.forEachAlive(forEach, this);
-		this.edges.forEachAlive(forEach, this);
 	};
 
+	/**
+	 * Returns true for a block of earth and false for goodies or gap items (i.e. null)
+	 * @param item
+	 * @returns {Boolean}
+	 */
+	Earth.prototype.isBlock = function(cell) {
+		return cell !== null && cell.frame !== null && cell.frame < this.frames.HEALTH;
+	};
+	
+	
+	/**
+	 * Returns true if the cell has a background attached
+	 * @param item
+	 * @returns {Boolean}
+	 */
+	Earth.prototype.hasBackground = function(cell) {
+		return typeof cell.background !== "undefined" && cell.background !== null;
+	};
+	
+	/**
+	 * Creates an explosion
+	 * @param item used to position the explosion
+	 */
+	Earth.prototype.explode = function(item) {
+		this.sounds.hit.play();
+		var explosion = this.explosions.getFirstExists(false);
+		if (explosion) {
+			explosion.reset(item.body.x + item.body.width/2, -this.items.y + item.body.y + item.body.height/2);
+			explosion.play("kaboom", 30, false, true);
+		}
+	};
 
 	app.Earth = Earth;
 }(App));

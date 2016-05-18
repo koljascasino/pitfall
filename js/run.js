@@ -21,8 +21,8 @@ $(function(){
 		// Start game
 		var music = new App.Music(context);
 		var ui = new App.Ui(music);
-		var game = new Phaser.Game(800, 600, Phaser.AUTO, "canvas_container");
-		var gameState = new App.GameState(ui, music, game, 800, 600);
+		var game = new Phaser.Game(900, 600, Phaser.AUTO, "canvas_container");
+		var gameState = new App.GameState(ui, music, game, 900, 600);
 		game.state.add("game", gameState, true);
 
 	} else {

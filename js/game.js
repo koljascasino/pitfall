@@ -29,7 +29,7 @@
 	GameState.prototype.preload = function() {
 		this.game.load.image("bullet", "img/bullet.png");
 		this.game.load.spritesheet("earth", "img/earth.png", 50, 50);
-		this.game.load.image("playerLight", "img/light_800x600.png");
+		this.game.load.image("playerLight", "img/light_900x600.png");
 		this.game.load.image("ship", "img/ship.png");
 		this.game.load.spritesheet("kaboom", "img/explosion.png", 128, 128);
 		this.game.load.image("starfield", "img/starfield.png", this.width, this.height);
@@ -37,9 +37,9 @@
 
 	GameState.prototype.create = function() {
 
-		//  The scrolling starfield background
-		this.starfield = this.game.add.tileSprite(0, 0, this.width, this.height, "starfield");
-
+		// The earth
+		this.earth = new app.Earth(this.game, this.sounds, this.width, this.height);
+		
 		//  Our bullet group
 		this.bullets = this.game.add.group();
 		this.bullets.enableBody = true;
@@ -54,15 +54,12 @@
 		// The hero!
 		this.player = new app.Player(this.game, this.ui, this.music, this.width);
 
-		// The earth
-		this.earth = new app.Earth(this.game, this.sounds, this.player, this.width, this.height);
-
-		// Shadow and light texture
+		// Light texture
 		this.light = {};
 		this.light.texture = this.game.add.bitmapData(this.width, this.height);
 		this.light.image = this.game.add.image(0, 0, this.light.texture);
 		this.light.image.blendMode = Phaser.blendModes.MULTIPLY;    
-		this.updateShadowTexture();
+		this.updateLight();
 
 		// And some controls to play the game with
 		this.input.cursors = this.game.input.keyboard.createCursorKeys();
@@ -105,18 +102,17 @@
 	};
 
 	/**
-	 * Updates the shadow texture (this.shadowTexture).
-	 * First, it fills the entire texture with a dark shadow color.
+	 * Updates the Light texture (this.LightTexture).
+	 * First, it fills the entire texture with a dark Light color.
 	 * Then it draws a white circle centered on the pointer position.
 	 * Because the texture is drawn to the screen using the MULTIPLY
 	 * blend mode, the dark areas of the texture make all of the colors
 	 * underneath it darker, while the white area is unaffected.
 	 */
-	GameState.prototype.updateShadowTexture = function() {
-
+	GameState.prototype.updateLight = function() {
 		var radius = 400;
 
-		// Draw shadow
+		// Draw Light
 		this.light.texture.context.fillStyle = "rgb(0, 0, 0)";
 		this.light.texture.context.fillRect(0, 0, this.width, this.height);
 
@@ -160,10 +156,8 @@
 		var boost = 20;
 		var stickyness = 40;
 
-		// Scroll the background
-		this.starfield.tilePosition.y -= 1;
-		this.earth.update();
-		this.updateShadowTexture();
+		this.earth.update(this.player);
+		this.updateLight();
 		this.input.update();
 
 		// Check for movement keys, input provides value between -1 and 1
@@ -182,17 +176,17 @@
 		}
 
 		// Hard boundaries
-		if (this.player.sprite.x < this.player.sprite.width/2) {
-			this.player.sprite.x = this.player.sprite.width/2;
+		if (this.player.sprite.x < 3 * this.player.sprite.width/2 ) {
+			this.player.sprite.x = 3 * this.player.sprite.width/2;
 			this.player.sprite.body.velocity.x = 0;
-		} else if (this.player.sprite.x > this.width - this.player.sprite.width/2) {
-			this.player.sprite.x = this.width - this.player.sprite.width/2;
+		} else if (this.player.sprite.x > this.width - 3 * this.player.sprite.width/2) {
+			this.player.sprite.x = this.width - 3 * this.player.sprite.width/2;
 			this.player.sprite.body.velocity.x = 0;
 		}
 
 		//  Run collision
-		this.game.physics.arcade.overlap(this.bullets, this.earth.edges, this.bulletHitsEarth, null, this);
-		this.game.physics.arcade.overlap(this.earth.edges, this.player.sprite, this.playerHitsEarth, null, this);
+		this.game.physics.arcade.overlap(this.bullets, this.earth.items, this.bulletHitsEarth, null, this);
+		this.game.physics.arcade.overlap(this.earth.items, this.player.sprite, this.playerHitsEarth, null, this);
 	};
 
 	GameState.prototype.play = function() {
@@ -220,7 +214,7 @@
 		this.input.pauseButton.onDown.add(this.pause, this);
 	};
 
-//	Bullet hits earth
+	// Bullet hits earth
 	GameState.prototype.bulletHitsEarth = function(bullet, item) {
 
 		// Bullet hits earth, create explosion
@@ -232,15 +226,15 @@
 		}
 	};
 
-//	Player hits earth
+	// Player hits earth
 	GameState.prototype.playerHitsEarth = function(player, item) {
 		if (item.frame >= this.earth.frames.HEALTH){		
 			this.playerHitsGoodie(item);
 			this.earth.kill(item);
 		}
 		else {
-			this.playerTakesHit(item);
 			this.earth.kill(item);
+			this.playerTakesHit(item);
 		}	
 	};
 
@@ -304,7 +298,7 @@
 		if (this.player.shield <= 0) {
 			this.player.sprite.kill();  
 			this.sounds.die.play();
-			this.music.pause();
+			this.music.pause(true);
 			this.ui.gameOverScreen(this.restart, this);
 			this.input.pauseButton.onDown.remove(this.pause, this);
 		}

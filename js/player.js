@@ -42,7 +42,7 @@
 	 * Also increases the energy and decreases bonus during each step
 	 * @param level
 	 */
-	Player.prototype.update = function(level) {
+	Player.prototype.updateLevel = function(level) {
 		this.level = level;
 		if (this.energy < 100) {
 			this.energy += 1;
