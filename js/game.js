@@ -3,7 +3,7 @@
 
 	/**
 	 * Implements and extends the Phaser GameState object.
-	 * This hold all information about the current game state
+	 * This holds all information about the current game state
 	 * @param ui Handle to the ui
 	 * @param music Handle to the music module
 	 * @param game Handle to the phaser game
@@ -16,9 +16,68 @@
 		this.game = game;
 		this.ui = ui;
 		this.music = music;
-		this.sounds = music.sounds;
-	};
 
+		this.config = [];
+		
+		// Level 1
+		this.config[0] = [{
+			autocorrelation: 0.9,
+			lfo1period: 100,
+			lfo2period: 100,
+			gap: {width: 4, stdev: 0.2},
+			probability: {starship: 0, bonus: 0, health: 0.004, energy: 0.01 },
+			goal: {stage: 200, level: 1000}
+		},{
+			autocorrelation: 0.9,
+			lfo1period: 100,
+			lfo2period: 50,
+			gap: {width: 2.75, stdev: 0.2},
+			probability: {starship: 0, bonus: 0.002, health: 0.006, energy: 0.03 },
+			goal: {stage: 800, level: 1000}
+		},{
+			autocorrelation: 0.8,
+			lfo1period: 50,
+			lfo2period: 50,
+			gap: {width: 3, stdev: 0.2},
+			probability: {starship: 0, bonus: 0.002, health: 0.005, energy: 0.02 },
+			goal: {stage: 1000, level: 1000}
+		}];
+		
+		// Level 2
+		this.config[1] = [{
+			autocorrelation: 0.7,
+			lfo1period: 100,
+			lfo2period: 200,
+			gap: {width: 3, stdev: 0.5},
+			probability: {starship: 0, bonus: 0, health: 0.007, energy: 0.02 },
+			goal: {stage: 1200, level: 2000}
+		},{
+			autocorrelation: 0.6,
+			lfo1period: 40,
+			lfo2period: 60,
+			gap: {width: 3, stdev: 0.5},
+			probability: {starship: 0, bonus: 0.002, health: 0.005, energy: 0.02 },
+			goal: {stage: 1500, level: 2000}
+		},{
+			autocorrelation: 0.6,
+			lfo1period: 100,
+			lfo2period: 125,
+			gap: {width: 3, stdev: 0.6},
+			probability: {starship: 0.001, bonus: 0.002, health: 0.005, energy: 0.02 },
+			goal: {stage: 2000, level: 2000}
+		}];
+		
+		// End
+		this.config[2] = [{
+			autocorrelation: 1,
+			lfo1period: 0,
+			lfo2period: 0,
+			gap: {width: 100, stdev: 0},
+			probability: {starship: 0, bonus: 0, health: 0.004, energy: 0.01},
+			goal: {stage: 100000, level: 100000}
+		}];
+	};
+	
 	GameState.prototype.init = function() {	
 		this.game.scale.scaleMode = Phaser.ScaleManager.SHOW_ALL;
 		this.game.scale.setMinMax(0, 0, this.width, this.height);
@@ -30,15 +89,16 @@
 		this.game.load.image("bullet", "img/bullet.png");
 		this.game.load.spritesheet("earth", "img/earth.png", 50, 50);
 		this.game.load.image("playerLight", "img/light_900x600.png");
-		this.game.load.image("ship", "img/ship.png");
+		this.game.load.spritesheet("ship", "img/ship.png", 40, 27);
 		this.game.load.spritesheet("kaboom", "img/explosion.png", 128, 128);
 		this.game.load.image("starfield", "img/starfield.png", this.width, this.height);
+		this.game.load.image("checker", "img/checker.png", 50, 50);
 	};
 
 	GameState.prototype.create = function() {
 
 		// The earth
-		this.earth = new app.Earth(this.game, this.sounds, this.width, this.height);
+		this.earth = new app.Earth(this.game, this.music, this.width, this.height, this.config[0][0]);
 		
 		//  Our bullet group
 		this.bullets = this.game.add.group();
@@ -139,6 +199,9 @@
 		// Draw player headlights if alive
 		if (this.player.sprite.alive){
 			this.light.texture.draw("playerLight", this.player.sprite.x - this.width/2, 50);
+			if (this.player.starship) {
+				addLight(this.player.sprite);
+			}
 		} else {
 			addLight(this.player.sprite);
 		}
@@ -155,8 +218,39 @@
 		var resistance = 0.2;
 		var boost = 20;
 		var stickyness = 40;
-
-		this.earth.update(this.player);
+		var depth = 0;	
+		var config = this.config[this.player.level-1][this.player.stage-1];
+		
+		// Update earth and player
+		depth = this.earth.update(this.player, this.config);
+		this.player.update(depth, config.goal.level);
+		
+		// Check if stage completed
+		if (depth == config.goal.stage) {
+			
+			// Level is completed
+			if (depth == config.goal.level) {
+				
+				// Win screen
+				if (this.player.level == this.config.length-1){
+					this.ui.winScreen(this.restart, this);
+				
+				// Next level
+				} else {
+					this.game.paused = true;
+					this.player.stage = 1;
+					this.player.level += 1;
+					this.ui.levelScreen(this.player.level, function() {
+						this.game.paused = false;
+						this.music.play(this.player.level);
+					}, this);	
+				}
+			}  else {
+				this.player.stage += 1;
+			}
+		}
+		
+		// Update lights and input
 		this.updateLight();
 		this.input.update();
 
@@ -193,7 +287,7 @@
 		this.game.paused = false;
 		this.music.play();
 		if (this.player.bonus > 0){
-			this.music.doubleTime();
+			this.music.doubleTime(true);
 		}
 		this.input.pauseButton.onDown.add(this.pause, this);
 	};
@@ -208,9 +302,9 @@
 	GameState.prototype.restart = function() {
 
 		// Clear and rebuild earth, revive player
-		this.earth.reset();
+		this.earth.reset(this.config[0][0]);
 		this.player.reset();
-		this.music.play();
+		this.music.reset();
 		this.input.pauseButton.onDown.add(this.pause, this);
 	};
 
@@ -234,7 +328,10 @@
 		}
 		else {
 			this.earth.kill(item);
-			this.playerTakesHit(item);
+			this.earth.explode(item);
+			if (!this.player.starship) {
+				this.playerTakesHit(item);
+			}
 		}	
 	};
 
@@ -248,7 +345,7 @@
 			var bullet = this.bullets.getFirstExists(false);
 
 			if (bullet) {
-				if (this.player.bonus > 0){
+				if (this.player.bonus > 0) {
 					bullet.reset(this.player.sprite.x - 22, this.player.sprite.y + 30);
 					bullet.body.velocity.y = 400;
 					bullet.body.velocity.x = this.player.sprite.body.velocity.x/2;
@@ -258,13 +355,13 @@
 					bullet.body.velocity.y = 400;
 					bullet.body.velocity.x = this.player.sprite.body.velocity.x/2;
 					this.bulletTime = this.game.time.now + 200;
-					this.sounds.arrow.play();
+					this.music.sounds.arrow.play();
 				} else {
 					bullet.reset(this.player.sprite.x, this.player.sprite.y + 30);
 					bullet.body.velocity.y = 400;
 					bullet.body.velocity.x = this.player.sprite.body.velocity.x/2;
 					this.bulletTime = this.game.time.now + 200;
-					this.sounds.arrow.play();
+					this.music.sounds.arrow.play();
 					this.player.energy -= 10;
 				}
 			}
@@ -277,10 +374,18 @@
 		} else if (item.frame === this.earth.frames.ENERGY) {
 			this.player.energy += Math.min(20, 100 - this.player.energy);	
 		} else if (item.frame === this.earth.frames.BONUS) {
-			this.music.doubleTime();
+			if (this.player.bonus === 0){
+				this.music.doubleTime(true);
+			}
 			this.player.bonus = 100;
+		} else if (item.frame === this.earth.frames.STARSHIP) {
+			this.player.starship = true; 
+			this.music.starship(function() {
+				this.player.starship = false;
+				this.player.sprite.frame = 0;		
+			}.bind(this));
 		}
-		this.sounds.rupee.play();
+		this.music.sounds.rupee.play();
 		this.ui.update(this.player);
 	};
 
@@ -289,15 +394,12 @@
 		// Decrease health
 		this.player.shield -= 10;
 		this.ui.update(this.player);
-
-		// Create explosion
-		this.sounds.hurt.play();
-		this.earth.explode(item);
+		this.music.sounds.hurt.play();
 
 		// When the player dies
 		if (this.player.shield <= 0) {
 			this.player.sprite.kill();  
-			this.sounds.die.play();
+			this.music.sounds.die.play();
 			this.music.pause(true);
 			this.ui.gameOverScreen(this.restart, this);
 			this.input.pauseButton.onDown.remove(this.pause, this);

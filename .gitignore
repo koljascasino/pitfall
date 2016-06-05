@@ -43,3 +43,7 @@ node_modules
 # Raw audio #
 #############
 *.wav
+
+build/pitfall.min.js
+
+build/pitfall.js

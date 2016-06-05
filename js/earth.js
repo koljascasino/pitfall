@@ -9,31 +9,27 @@
 	 * @param width
 	 * @param height
 	 */
-	var Earth = function Earth(game, sounds, width, height) {
+	var Earth = function Earth(game, music, width, height, config) {
 		this.game = game;
-		this.sounds = sounds;
+		this.music = music;
 		this.width = width;
 		this.height = height;
 		this.backgroundScroll = 0;
+		this.levelHeight = 50;
+		this.blockWidth = 50;
+		this.depth = 0;
 
-		// Configuration
-		this.config = {
-				autocorrelation: 0.8,
-				decay: 0.999,
-				levelHeight: 50,
-				blockWidth: 50,
-				lfo1period: 100,
-				lfo2period: 450
-		};
+		// Some constants
 		this.frames = {
 				HEALTH: 16, 
 				ENERGY: 17,
 				BONUS: 18,
+				STARSHIP: 19
 		};
 
 		// Some parameters
-		this.nBlocks = this.width / this.config.blockWidth;
-		this.nLevels = Math.floor(this.height / this.config.levelHeight);
+		this.nBlocks = this.width / this.blockWidth;
+		this.nLevels = Math.floor(this.height / this.levelHeight);
 		
 		// Block background, these are all the blocks which are not at the edge of the earth
 		// i.e. the space completely surrounded by other blocks 
@@ -42,15 +38,23 @@
 		// Background tile sprites are used to model the background
 		// On the canvas they occupy the space in the crack, also each item has a background tile
 		// Everything that is not covered by the by the block field 
+		var tile, x;
 		this.background = this.game.add.group();
 		this.background.enableBody = true;
 		this.background.physicsBodyType = Phaser.Physics.ARCADE;
-		var tile;
-		for (var x = 0; x < (2 * this.nLevels + 4); x++) {
-			tile = new Phaser.TileSprite(this.game, 0, 0, this.config.blockWidth, this.config.levelHeight, "starfield");
+		for (x = 0; x < (2 * this.nLevels + 4); x++) {
+			tile = new Phaser.TileSprite(this.game, 0, 0, this.blockWidth, this.levelHeight, "starfield");
 			this.background.add(tile);
 		}
-
+		
+		this.checkers = this.game.add.group();
+		this.checkers.enableBody = true;
+		this.checkers.physicsBodyType = Phaser.Physics.ARCADE;
+		for (x = 0; x < 8; x++) {
+			tile = new Phaser.TileSprite(this.game, 0, 0, this.blockWidth, this.levelHeight, "checker");
+			this.checkers.add(tile);
+		}
+		
 		// This holds items at the edge of the earth and goodies
 		// Use this to run collisions
 		this.items = this.game.add.group();
@@ -72,30 +76,29 @@
 			block.animations.add("kaboom");
 		};
 		this.explosions.forEach(setupExplosion, this);
-
+		
 		// Set initial parameters and setup items
-		this.reset();
+		this.reset(config);
 	};
 
 	/**
 	 * Sets up or resets initial earth parameters and all items
 	 */
-	Earth.prototype.reset = function() {
+	Earth.prototype.reset = function(config) {
 		this.items.y = 0;
 		this.background.y = 0;
+		this.checkers.y = 0;
 		this.explosions.y = 0;
 		for (var i = 0; i < this.nBlocks; i++) {
 			this.lastRow[i] = null;
 		}
-		this.autocorrelation = this.config.autocorrelation;
-		this.lfo1period = this.config.lfo1period;
-		this.lfo2period = this.config.lfo2period;
 		this.random = 0.5;
 		this.lfo = 0.5;
 		
 		this.items.forEach(this.kill, this);
 		this.items.callAll("kill"); // forEach(this.kill) does not kill all
 		this.background.callAll("kill");
+		this.checkers.callAll("kill");
 		
 		console.log("Earth reset");
 		console.log("	Items " + this.items.length + " / " + this.items.countLiving() + "  alive." );
@@ -107,7 +110,9 @@
 		tile.width = this.width;
 		tile.height = this.height;
 	
-		this.updateLevel(0);
+		// Update config and make first step to initialize
+		this.updateConfig(config);
+		this.step(0);
 	};
 
 	/**
@@ -145,7 +150,7 @@
 		item.anchor.setTo(0, 0);
 		item.body.moves = false;
 		item.frame = 0;
-		item.width = this.config.blockWidth;
+		item.width = this.blockWidth;
 		item.cell = null;
 		item.background = null;
 	};
@@ -196,8 +201,8 @@
 	Earth.prototype.createItem = function(cell) {
 		var 
 			item = null,
-			x = cell.j * this.config.blockWidth,
-			y = this.height + cell.l * this.config.levelHeight;
+			x = cell.j * this.blockWidth,
+			y = this.height + cell.l * this.levelHeight;
 		
 		// Item already attached
 		if (cell.item !== null){
@@ -230,6 +235,7 @@
 	 */
 	Earth.prototype.createBackground = function(cell, x, y) {
 		var item = null;
+		var checker = null;
 		
 		// Do nothing for blocks surrounded completely or if gap already exists
 		if (cell.frame === 0 || this.hasBackground(cell)) {
@@ -239,36 +245,67 @@
 		// If background item already exists left then expand it
 		if (this.hasBackground(cell.neighbors.left)) {
 			item = cell.neighbors.left.background;
-			item.width += this.config.blockWidth;
+			item.width += this.blockWidth;
+			
+			// If cell has a checker sprite then expand it
+			if (this.hasChecker(cell.neighbors.left)) {
+				checker = cell.neighbors.left.checker;
+				checker.width += this.blockWidth;	
+			}
 		}
 		
 		// If background exists right then expand it
 		else if (this.hasBackground(cell.neighbors.right)) {
 			item = cell.neighbors.right.background;
-			item.x -= this.config.blockWidth;
+			item.x -= this.blockWidth;
 			item.tilePosition.x = -x;
-			item.width += this.config.blockWidth;
+			item.width += this.blockWidth;
+			
+			// If it has a checker sprite then expand it
+			if (this.hasChecker(cell.neighbors.right)) {
+				checker = cell.neighbors.right.checker;
+				checker.x -= this.blockWidth;
+				checker.width += this.blockWidth;
+			}
 		}
 
 		// Else create a new background
 		else {
-			item = this.background.next();
+			item = this.background.next();	
 			item.reset(x, y);
 			item.tilePosition.x = -x;
 			item.tilePosition.y = -y + this.backgroundScroll;
-			item.width = this.config.blockWidth;
-			item.height = this.config.levelHeight;
+			item.width = this.blockWidth;
+			item.height = this.levelHeight;
+			
+			// Add a checker sprite to draw the mission goal 
+			if (cell.l == this.config.goal.level) {
+				checker = this.checkers.next();
+				checker.reset(x, y);
+				checker.width = this.blockWidth;
+				checker.height = this.levelHeight;
+			}
 		}
 		
 		// Attach background to parent cell
 		cell.background = item;
+		if (checker !== null) {
+			cell.checker = checker;	
+		}
 	};
 
+	Earth.prototype.updateConfig = function(config) {
+		this.config = config;
+		this.autocorrelation = config.autocorrelation;
+		this.lfo1period = config.lfo1period;
+		this.lfo2period = config.lfo2period;
+	};
+	
 	/**
 	 * Moves the earth up during each frame.
 	 * Checks if a new row of blocks needs to be created 
 	 */
-	Earth.prototype.update = function(player) {
+	Earth.prototype.update = function(player, config) {
 		var step = 4,
 		l = 0;
 
@@ -279,8 +316,9 @@
 		// Scroll blocks
 		this.items.y -= step;
 		this.background.y -= step;
+		this.checkers.y -= step;
 		this.explosions.y -= step;
-		this.blockfield.tilePosition.y = this.items.y % this.config.levelHeight;
+		this.blockfield.tilePosition.y = this.items.y % this.levelHeight;
 		
 		// Scroll background slower than blocks
 		this.backgroundScroll = Math.floor(this.items.y / 8);
@@ -289,18 +327,30 @@
 		}.bind(this);
 		this.background.forEach(scroll);
 		
-		l = Math.floor(-this.items.y / this.config.levelHeight) + 1;
-		if (l > player.level) {
-			player.updateLevel(l);
-			this.updateLevel(l);
+		// Calculated depth (level)
+		l = Math.floor(-this.items.y / this.levelHeight) + 1;
+		if (l > this.depth) {
+			this.step(l);
+			
+			// Switch config once goal is reached
+			if (l > this.config.goal.stage) {
+				if (l > this.config.goal.level){
+					this.updateConfig(config[player.level][0]);
+				} else {
+					this.updateConfig(config[player.level-1][player.stage]);	
+				}
+			}
 		}
+		
+		// Earth is creating item ahead of game, return adjusted depth for game
+		return Math.max(0, l - this.nLevels);
 	};
 
 	/**
 	 * Creates a new row of blocks by recycling the disappearing ones
 	 * @param l New level
 	 */
-	Earth.prototype.updateLevel = function(l){
+	Earth.prototype.step = function(l) {
 		var j = 0,
 		lfo1 = 0,
 		lfo2 = 0,
@@ -309,17 +359,21 @@
 		cell = null,
 		frame = null,
 		forEach = null;
+		
+		this.depth = l;
 
 		// Update player and random parameters
-		this.autocorrelation = this.autocorrelation * this.config.decay;
-		this.lfo1period = this.lfo1period * this.config.decay;
-		this.lfo2period = this.lfo2period * this.config.decay * this.config.decay;
+//		this.autocorrelation = this.autocorrelation * this.config.decay;
+//		this.lfo1period = Math.max(40, this.lfo1period * this.config.decay);
+//		this.lfo2period = Math.max(55, this.lfo2period * this.config.decay * this.config.decay);
 		this.random = (1 - this.autocorrelation) * Math.random() + this.autocorrelation * this.random;
 		lfo1 = (Math.sin(l * 2 * Math.PI / this.lfo1period) + 1) / 2;
 		lfo2 = (Math.sin(l * 2 * Math.PI / this.lfo2period) + 1) / 2;
 		gap = (lfo1/3 + lfo2/3 + this.random/3) * (this.nBlocks - 4) + 2;
-		gapWidth = Math.round(Math.random() * 3) + 3;
+		gapWidth = Math.round(this.config.gap.width * (1 + this.config.gap.stdev * (2 * Math.random() - 1))); 
 
+		// console.log(this.lfo1period + " " + this.lfo2period);
+		
 		// Store cells from previous row
 		this.previousRow = this.lastRow;
 		this.lastRow = new Array(this.nBlocks);
@@ -333,11 +387,13 @@
 				frame = 0;
 			} else {
 				var r = Math.random();
-				if (r > 0.999) {
+				if (r < this.config.probability.starship) {
+					frame = this.frames.STARSHIP;	
+				} else if (r < this.config.probability.bonus) {
 					frame = this.frames.BONUS;	
-				} else if (r > 0.995) {
+				} else if (r < this.config.probability.health) {
 					frame = this.frames.HEALTH;
-				} else if (r > 0.98) {
+				} else if (r < this.config.probability.energy) {
 					frame = this.frames.ENERGY;	
 				}
 			}
@@ -408,11 +464,20 @@
 	};
 	
 	/**
+	 * Returns true if the cell has a background attached
+	 * @param item
+	 * @returns {Boolean}
+	 */	
+	Earth.prototype.hasChecker = function(cell) {
+		return typeof cell.checker !== "undefined" && cell.checker !== null;
+	};
+	
+	/**
 	 * Creates an explosion
 	 * @param item used to position the explosion
 	 */
 	Earth.prototype.explode = function(item) {
-		this.sounds.hit.play();
+		this.music.sounds.hit.play();
 		var explosion = this.explosions.getFirstExists(false);
 		if (explosion) {
 			explosion.reset(item.body.x + item.body.width/2, -this.items.y + item.body.y + item.body.height/2);

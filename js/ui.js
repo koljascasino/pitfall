@@ -10,8 +10,6 @@
 	 */
 	var Ui = function Ui(music) {
 		this.music = music;
-		this.levelString = "Level : ";
-		this.highScoreString = " | High score : ";
 		this.touch = false;
 		this.orientation = null;
 
@@ -73,7 +71,7 @@
 					$("#player_pause").removeClass("hidden");
 					this.startScreen(callback, context);
 				}.bind(this);
-				this.music.load(onAudioLoad);
+				this.music.load(1, onAudioLoad);
 			} else {
 
 				// Mute/unmute button was clicked
@@ -89,10 +87,22 @@
 	/**
 	 * Shows the splash screen to start the game
 	 */
-	Ui.prototype.startScreen = function(callback, context) {
+	Ui.prototype.startScreen = function(onHidden, context) {
 		$("#loader").addClass("hidden");
 		this.showSplashScreen("", "Press any key to start your mission.");
-		this.setSplashScreenHandler(callback, context);
+		this.setSplashScreenHandler(onHidden, context);
+	};
+	
+	/**
+	 * Shows the stage complete screen
+	 */
+	Ui.prototype.levelScreen = function(level, onHidden, context) {
+		this.showSplashScreen("Stage complete!", "Loading audio");
+		var onAudioLoad = function() {
+			this.showSplashScreen("Stage complete!", "Press any key to continue your mission.");
+			this.setSplashScreenHandler(onHidden, context);
+		}.bind(this);
+		this.music.load(level, onAudioLoad);
 	};
 
 	/**
@@ -114,6 +124,18 @@
 		}.bind(this); 
 		setTimeout(delayedCallback, 3000);
 	};
+	
+	/**
+	 * Win screen
+	 */
+	Ui.prototype.winScreen = function(callback, context) {
+		this.showSplashScreen("WELL DONE EARTHLING!", "You made it to the core of the planet.");
+		var delayedCallback = function() {
+			this.showSplashScreen("WELL DONE EARTHLING!", "Press any key to restart");
+			this.setSplashScreenHandler(callback, context);
+		}.bind(this); 
+		setTimeout(delayedCallback, 60000);
+	};
 
 	/**
 	 * Shows a splash screen
@@ -132,19 +154,21 @@
 	 * @param callback
 	 * @param context
 	 */
-	Ui.prototype.setSplashScreenHandler = function(callback, context) {
-		var onHidden = function() {
-			this.hideSplashScreen(callback, context);
+	Ui.prototype.setSplashScreenHandler = function(onHidden, context) {
+		var callback = function() {
+			this.hideSplashScreen(onHidden, context);
 		}.bind(this);
-		this.addHandler($("#splashscreen"), onHidden, true);
+		this.addHandler($("#splashscreen"), callback, true);
 	};
 
 	/**
 	 * Hides the splash screen, and calls the callback 
 	 * after flickering the splash screen for a while
+	 * This also always stops the music
 	 * @param callback {function} to be called after hiding
 	 */
-	Ui.prototype.hideSplashScreen = function(callback, context){
+	Ui.prototype.hideSplashScreen = function(callback, context) {
+		this.music.stopTracks(1.1);
 		var flicker = setInterval(function() {
 			$("#text").toggleClass("flicker");
 		}, 100);
@@ -166,10 +190,12 @@
 	 * @param player Player object
 	 */
 	Ui.prototype.update = function(player) {
-		if (player.level > player.highScore) {
-			player.highScore = player.level;
+		var levelString = "Level : ";
+		var depthString = " | Depth : ";
+		if (player.depth > player.highScore) {
+			player.highScore = player.depth;
 		}
-		$("#menu_left").text(this.levelString + this.format(player.level, 5) + this.highScoreString + this.format(player.highScore, 5));
+		$("#menu_left").text(levelString + this.format(player.level, 1) + depthString + this.format(player.depth * 5, 5) + "/" + this.format(player.goal * 5, 5) + "m");
 		$("#health_bar").width(String(player.shield) + "%");
 		if (player.bonus > 0){
 			$("#energy_bar").addClass("hidden");

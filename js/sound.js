@@ -6,7 +6,7 @@
 	 * @param music Handle to the music module
 	 * @param key filename without extension
 	 */
-	var Sound = function Sound(music, key) {
+	var Sound = function Sound(music, key, callback) {
 		this.music = music;
 		this.key = key;
 		this.config = {
@@ -23,7 +23,7 @@
 			console.log(this.config.path + this.key + this.music.extension + " loaded.");
 			this.buffer = buffer;
 			this.ready = true;
-			this.music.ready();
+			callback();
 		}.bind(this);
 		music.loadAudio(this.music.context, this.config.path, this.key, onLoaded);
 	};

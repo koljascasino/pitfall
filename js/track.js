@@ -10,29 +10,30 @@
 	 * @param duration
 	 * @param nextMap
 	 */
-	var Track = function Track(music, key, duration, nextMap, loadReverse) {
+	var Track = function Track(music, tracks, key, config, callback) {
 		this.music = music;
+		this.tracks = tracks;
 		this.key = key;
-		this.config = {
-				path: "music/"
-		};
+		this.path = config.path;
+		this.duration = config.duration;
+		this.loadReverse = config.reverse;
+		this.nextMap = config.next;
 		this.buffer = null;
 		this.reverseBuffer = null;
 		this.ready = false;
-		this.duration = duration;
 		this.startTime = null;
 		this.endTime = null;
-		this.loadReverse = loadReverse;
 		this.reverse = false;
 		this.deck = 0;
-		this.nextMap = nextMap;
 		this.next = null;
 		this.nodes = [{}, {}];
+		this.callback = null;
+		this.muted = false;
 
 		// Track loaded callback
 		// Check if all tracks are loaded and start playing master track
 		var onLoaded = function(buffer) {
-			console.log(this.config.path + this.key + this.music.extension + " loaded. Length " + String(buffer.length) + " samples or " + String(buffer.duration) + "s");
+			console.log(this.path + this.key + this.music.extension + " loaded. Length " + String(buffer.length) + " samples or " + String(buffer.duration) + "s");
 			
 			this.buffer = buffer;
 			this.ready = true;
@@ -42,15 +43,10 @@
 				this.reverseBuffer = this.music.getReverseClone(this.buffer);
 			}
 			
-			// Check if this was the last track to be loaded
-			this.music.ready();
-
-			// Start playing master track as soon as its loaded
-			if (this.music.masterTrack === this) {
-				this.play();
-			}
+			// Tell the caller this track is loaded
+			callback(this);
 		}.bind(this);
-		this.music.loadAudio(this.music.context, this.config.path, this.key, onLoaded); 
+		this.music.loadAudio(this.music.context, this.path, this.key, onLoaded); 
 	};
 
 	/**
@@ -58,17 +54,25 @@
 	 * @param startTime
 	 * @param fadeTime
 	 */
-	Track.prototype.play = function(fadeInTime, reverse) {
+	Track.prototype.play = function(fadeInTime, reverse, callback, startTime) {
+
 
 		// If track is already playing do nothing
 		if (this.startTime !== null) {
 			return;
 		}
 		
+		// Set callback
+		this.callback = callback;
+		
 		// Calculate start time and offset
 		var offset = 0;
 		var masterStart = 0;
-		if (this.music.masterTrack.key === this.key){
+		if (typeof startTime !== "undefined"){
+			this.startTime = startTime;
+			offset = 0;
+		}
+		else if (this.music.masterTrack.key === this.key){
 			this.startTime = this.music.context.currentTime + this.music.config.startDelay;
 			offset = 0;
 		} else {
@@ -102,11 +106,12 @@
 	 * @param startTime
 	 * @param offset
 	 * @param fadeTime
+	 * @param callback called when first loop ends
 	 */
 	Track.prototype.startDeck = function(startTime, offsetProvided, fadeInTime) {
 		
 		// Switch deck
-		if (this.deck === 0){
+		if (this.deck === 0) {
 			this.deck = 1;
 		} else {
 			this.deck = 0;
@@ -117,37 +122,41 @@
 		var delay;
 		var fadeIn = 0;
 		
-		// var masterStart = this.music.masterTrack.startTime;
-		// var masterDuration = this.music.masterTrack.duration;
+		var masterStart = this.music.masterTrack.startTime;
+		var masterDuration = this.music.masterTrack.duration;
 		
 		// Caller already did the job
-		if (typeof offsetProvided !== "undefined"){
+		if (false && typeof offsetProvided !== "undefined") {
 			offset = offsetProvided;
 			delay = 0;
-		} else {
+		
+		// The master track is always in sync
+		} else if (this.music.masterTrack.key === this.key || this.music.masterTrack.next == this.key) {
 			offset = 0;
 			delay = 0;
-		}
 			
-		/*
 		// Calculate offset or delay
 		} else {
 			offset = ((startTime - masterStart)  % masterDuration) % this.duration;
-			delay = (((((masterStart - startTime) % masterDuration) + masterDuration) % masterDuration % this.duration) + this.duration) % this.duration;
-			if (offset < -0.0001) {
+			if (offset < 0) {
 				delay = -offset;
-				offset = 0;
-			} else if (offset < 0.0001 && delay < 0.0001){
+			} else {
+				delay = Math.min(masterDuration, this.duration) - offset;
+			}
+			
+			//delay = (((((masterStart - startTime) % masterDuration) + masterDuration) % masterDuration % this.duration) + this.duration) % this.duration;
+			
+			if (offset < 0.0001 || delay < 0.0001){
 				offset = 0;
 				delay = 0;
-			} else if (offset < delay) {
+			} else if (offset < delay || delay > 0.5) {
 				console.log("	Offset: " + offset + ", delay: " + delay + " -> offsetting by " + offset);
 				delay = 0;
 			} else {
 				console.log("	Offset: " + offset + ", delay: " + delay + " -> delaying by " + delay);
 				offset = 0;
 			}
-		}*/
+		}
 		
 		// Set start and end time
 		if (this.startTime === null){
@@ -157,7 +166,7 @@
 		
 		// Use reverse buffer?
 		var buffer = this.buffer;
-		if (this.reverse && this.reverseBuffer !== null){
+		if (this.reverse && this.reverseBuffer !== null) {
 			buffer = this.reverseBuffer;
 		}
 		
@@ -181,7 +190,7 @@
 			nodes.gain.gain.linearRampToValueAtTime(0, startTime);
 			nodes.gain.gain.linearRampToValueAtTime(1, startTime + Math.min(offset, fadeIn));
 		} else {
-			nodes.gain.gain.value = 1;
+			nodes.gain.gain.value = this.muted ? 0 : 1;
 		}
 
 		// Set up callback
@@ -208,7 +217,7 @@
 		}
 		
 		// Schedule the deck
-		this.music.tracks[this.next].startDeck(this.endTime);
+		this.tracks[this.next].startDeck(this.endTime);
 	};
 	
 	/**
@@ -226,11 +235,17 @@
 		// Switch master track
 		if (this.music.masterTrack === this && this.next !== this.key){
 			console.log("Switching master track to " + this.next);
-			this.music.masterTrack = this.music.tracks[this.next];
+			this.music.masterTrack = this.tracks[this.next];
 		}
 		
 		// Schedule next track
-		this.music.tracks[this.next].scheduleNext();
+		this.tracks[this.next].scheduleNext();
+		
+		// If a callback is set for the track call it after the track has ended  
+		if (typeof this.callback !== "undefined" && this.callback !== null){
+			this.callback();
+			this.callback = null;
+		}
 	};
 
 	/**
@@ -246,18 +261,31 @@
 		if (typeof fadeOutTime !== "undefined") {
 			fadeOut = fadeOutTime;
 		}
-		
+		var currentTime = this.music.context.currentTime;
 		for (var deck = 0; deck < 2; deck++) {
 			if (typeof this.nodes[deck].source !== "undefined") {
 				this.nodes[deck].source.onended = null;
-				if (this.music.config.fadeOutTime > 0) {
-					this.nodes[deck].gain.gain.linearRampToValueAtTime(0, this.music.context.currentTime + this.music.config.fadeOutTime );
+				if (fadeOut > 0 && this.nodes[deck].gain.gain.value > 0) {
+					this.nodes[deck].gain.gain.linearRampToValueAtTime(1, currentTime);
+					this.nodes[deck].gain.gain.linearRampToValueAtTime(0, currentTime + fadeOut);
 				}
 				try {
-					this.nodes[deck].source.stop(this.music.context.currentTime + fadeOut);
+					this.nodes[deck].source.stop(currentTime + fadeOut);
 				} catch(e){
 					console.log(e);
 				}
+			}
+		}
+	};
+	
+	/**
+	 * Mute or unmute track
+	 */
+	Track.prototype.mute = function(muted) {
+		this.muted = muted;
+		for (var deck = 0; deck < 2; deck++) {
+			if (typeof this.nodes[deck].gain !== "undefined") {
+				this.nodes[deck].gain.gain.linearRampToValueAtTime(muted ? 0 : 1, this.music.context.currentTime + 0.01);
 			}
 		}
 	};
